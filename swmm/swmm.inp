@@ -1,0 +1,239 @@
+[TITLE]
+;;Project Title/Notes
+
+[OPTIONS]
+;;Option             Value
+FLOW_UNITS           CMS
+INFILTRATION         HORTON
+FLOW_ROUTING         DYNWAVE
+LINK_OFFSETS         DEPTH
+MIN_SLOPE            0
+ALLOW_PONDING        YES
+SKIP_STEADY_STATE    NO
+
+START_DATE           09/05/2019
+START_TIME           00:00:00
+REPORT_START_DATE    09/05/2019
+REPORT_START_TIME    00:00:00
+END_DATE             09/23/2019
+END_TIME             00:00:00
+SWEEP_START          01/01
+SWEEP_END            01/01
+DRY_DAYS             0
+REPORT_STEP          00:05:00
+WET_STEP             00:01:00
+DRY_STEP             01:00:00
+ROUTING_STEP         0:00:10 
+RULE_STEP            00:00:00
+
+INERTIAL_DAMPING     NONE
+NORMAL_FLOW_LIMITED  BOTH
+FORCE_MAIN_EQUATION  H-W
+SURCHARGE_METHOD     SLOT
+VARIABLE_STEP        0.00
+LENGTHENING_STEP     0
+MIN_SURFAREA         1.167
+MAX_TRIALS           8
+HEAD_TOLERANCE       0.0015
+SYS_FLOW_TOL         5
+LAT_FLOW_TOL         5
+MINIMUM_STEP         0.05
+THREADS              4
+
+[EVAPORATION]
+;;Data Source    Parameters
+;;-------------- ----------------
+MONTHLY          0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0
+DRY_ONLY         NO
+
+[RAINGAGES]
+;;Name           Format    Interval SCF      Source    
+;;-------------- --------- ------ ------ ----------
+RG1              INTENSITY 0:01     1.0      TIMESERIES long_term_rainfallgauge5061
+
+[SUBCATCHMENTS]
+;;Name           Rain Gage        Outlet           Area     %Imperv  Width    %Slope   CurbLen  SnowPack        
+;;-------------- ---------------- ---------------- -------- -------- -------- -------- -------- ----------------
+S1               RG1              SU1              20       90       10       0.5      0
+S2               RG1              SU2              20       90       10       0.5      0
+S3               RG1              SU3              10       90       3        0.5      0                        
+S_Upstream       RG1              J1               500      25       25       0.5      0                        
+
+[SUBAREAS]
+;;Subcatchment   N-Imperv   N-Perv     S-Imperv   S-Perv     PctZero    RouteTo    PctRouted 
+;;-------------- ---------- ---------- ---------- ---------- ---------- ---------- ----------
+S1               0.01       0.1        0          0          25         OUTLET    
+S2               0.01       0.1        0          0          25         OUTLET    
+S3               0.01       0.1        0          0          25         OUTLET    
+S_Upstream       0.01       0.1        0          0          25         OUTLET    
+
+[INFILTRATION]
+;;Subcatchment   Param1     Param2     Param3     Param4     Param5    
+;;-------------- ---------- ---------- ---------- ---------- ----------
+S1               0          0          0          0          0
+S2               0          0          0          0          0
+S3               3.0        0.5        4          7          0         
+S_Upstream       3.0        0.5        4          7          0         
+
+[JUNCTIONS]
+;;Name           Elevation  MaxDepth   InitDepth  SurDepth   Aponded   
+;;-------------- ---------- ---------- ---------- ---------- ----------
+J1               7.5        0          0.2        0          0         
+J2               6.75       0          0.2        0          0         
+J3               6          0          0.2        0          0         
+J4               5.5        0          0.2        0          0         
+J5               0          0          0.2        0          0         
+
+[OUTFALLS]
+;;Name           Elevation  Type       Stage Data       Gated    Route To        
+;;-------------- ---------- ---------- ---------------- -------- ----------------
+OF1              0          FIXED      0.3              NO                       
+
+[STORAGE]
+;;Name           Elev.    MaxDepth   InitDepth  Shape      Curve Name/Params            N/A      Fevap    Psi      Ksat     IMD     
+;;-------------- -------- ---------- ----------- ---------- ---------------------------- -------- --------          -------- --------
+SU1              6.75     2          0.0        TABULAR    storage_curve1               0        0
+SU2              6        2          0.0        TABULAR    storage_curve2               0        0
+SU3              5.5      2          0.3        TABULAR    storage_curve3               0        0       
+
+[CONDUITS]
+;;Name           From Node        To Node          Length     Roughness  InOffset   OutOffset  InitFlow   MaxFlow   
+;;-------------- ---------------- ---------------- ---------- ---------- ---------- ---------- ---------- ----------
+C1               J1               J2               1500       0.01       0          0          0          0         
+C2               J2               J3               1500       0.01       0          0          0          0         
+C3               J3               J4               1000       0.01       0          0          0          0         
+C4               J4               J5               11000      0.01       0          0          0          0         
+C5               J5               OF1              100        0.01       0          0          0          0         
+
+[ORIFICES]
+;;Name           From Node        To Node          Type         Offset     Qcoeff     Gated    CloseTime 
+;;-------------- ---------------- ---------------- ------------ ---------- ---------- -------- ----------
+OR1              SU1              J2               BOTTOM       0          0.65       NO       0         
+OR2              SU2              J3               BOTTOM       0          0.65       NO       0         
+OR3              SU3              J4               BOTTOM       0          0.65       NO       0         
+
+[XSECTIONS]
+;;Link           Shape        Geom1            Geom2      Geom3      Geom4      Barrels    Culvert   
+;;-------------- ------------ ---------------- ---------- ---------- ---------- ---------- ----------
+C1               TRAPEZOIDAL  10               5          1          1          1                    
+C2               TRAPEZOIDAL  10               5          1          1          1                    
+C3               TRAPEZOIDAL  10               5          1          1          1                    
+C4               TRAPEZOIDAL  10               5          1          1          1                    
+C5               TRAPEZOIDAL  10               5          1          1          1                    
+OR1              CIRCULAR     0.175            0          0          0
+OR2              CIRCULAR     0.1              0          0          0
+OR3              CIRCULAR     0.1              0          0          0
+
+[CURVES]
+;;Name           Type       X-Value    Y-Value   
+;;-------------- ---------- ---------- ----------
+discharge_curve1 Rating     0.4        0         
+discharge_curve1            0.5        0.002     
+discharge_curve1            0.6        0.004     
+discharge_curve1            0.7        0.006     
+discharge_curve1            0.8        0.008     
+discharge_curve1            0.9        0.01      
+discharge_curve1            1          0.012     
+discharge_curve1            1.1        0.014     
+discharge_curve1            1.2        0.016     
+discharge_curve1            1.3        0.018     
+discharge_curve1            1.4        0.02      
+;
+discharge_curve2 Rating     0.4        0         
+discharge_curve2            0.5        0.0015    
+discharge_curve2            0.6        0.003     
+discharge_curve2            0.7        0.0045    
+discharge_curve2            0.8        0.006     
+discharge_curve2            0.9        0.0075    
+discharge_curve2            1          0.009     
+discharge_curve2            1.1        0.0105    
+discharge_curve2            1.2        0.012     
+discharge_curve2            1.3        0.0135    
+discharge_curve2            1.4        0.015     
+;
+discharge_curve3 Rating     0.3        0         
+discharge_curve3            0.4        0.000909  
+discharge_curve3            0.5        0.001818  
+discharge_curve3            0.6        0.002727  
+discharge_curve3            0.7        0.003636  
+discharge_curve3            0.8        0.004545  
+discharge_curve3            0.9        0.005455  
+discharge_curve3            1          0.006364  
+discharge_curve3            1.1        0.007273  
+discharge_curve3            1.2        0.008182  
+discharge_curve3            1.3        0.009091  
+discharge_curve3            1.4        0.01      
+;
+storage_curve1   Storage    2          2250      
+;
+storage_curve2   Storage    2          2250
+;
+storage_curve3   Storage    1.355      1550      
+;
+catchment_storage1 Storage    0.1        200000    
+;
+catchment_storage2 Storage    0.1        200000
+;
+catchment_storage3 Storage    0.01       100000    
+
+[TIMESERIES]
+;;Name           Date       Time       Value     
+;;-------------- ---------- ---------- ----------
+;
+long_term_rainfallgauge5061 FILE "/home/esther/Downloads/CLAIRE (copy)/swmm_models/swmm_5061.dat"
+
+[REPORT]
+;;Reporting Options
+SUBCATCHMENTS ALL
+NODES ALL
+LINKS ALL
+
+[TAGS]
+Node       J1               inlet           
+
+[MAP]
+DIMENSIONS 0.000 0.000 10000.000 10000.000
+Units      Meters
+
+[COORDINATES]
+;;Node           X-Coord            Y-Coord           
+;;-------------- ------------------ ------------------
+J1               -210.084           6422.205          
+J2               1201.514           6395.459          
+J3               2828.761           6376.537          
+J4               4497.268           6316.940          
+J5               5218.514           6288.838          
+OF1              5218.514           6572.494          
+SU1              1196.721           6844.278          
+SU2              2834.445           6819.613          
+SU3              4501.765           6799.881          
+
+[VERTICES]
+;;Link           X-Coord            Y-Coord           
+;;-------------- ------------------ ------------------
+
+[Polygons]
+;;Subcatchment   X-Coord            Y-Coord           
+;;-------------- ------------------ ------------------
+S1               440.606            7351.769          
+S1               1940.606           7370.637          
+S1               1968.908           8747.995          
+S1               412.304            8757.429          
+S2               2095.032           7485.104          
+S2               3286.289           7397.672          
+S2               3472.081           8523.355          
+S2               2105.961           8588.929          
+S3               3897.742           7524.571          
+S3               4903.206           7437.140          
+S3               5209.217           8344.244          
+S3               3930.529           8475.391          
+S_Upstream       -1465.061          6806.577          
+S_Upstream       185.212            6762.861          
+S_Upstream       261.715            9036.085          
+S_Upstream       -1443.203          9036.085          
+
+[SYMBOLS]
+;;Gage           X-Coord            Y-Coord           
+;;-------------- ------------------ ------------------
+RG1              -55.402            9196.676          
+

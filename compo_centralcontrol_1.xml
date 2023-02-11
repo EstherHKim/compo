@@ -1,0 +1,688 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Global time. One time unit in Uppaal represents 1 minute
+const int m = 1; // 1 minute = 1 time unit
+const int h = 60*m; // 1 hour = 60 minutes
+clock t; // global time [min]
+
+// ID
+const int N = 3; 
+typedef int[0, N-1] ID_T;
+
+// ID for compositional controller
+const int M = 2; 
+typedef int[0, M-1] ID2_T;
+
+
+// Rain gauge
+double rain0 = 0.0; //TAG_rain; // Rainfall [cm/min] //add for rain gauge 1
+double rain1 = 0.0; //TAG_rain; // Rainfall [cm/min] //add for rain gauge 2 
+double rain2 = 0.0; //TAG_rain; // Rainfall [cm/min] //add for rain gauge 3
+
+// Urban catchment
+// C1: 20 ha, C2: 20 ha, C3: 20 ha
+const double UC_k = 0.25; // Urban surface reservoir reaction factor [cm/min * 1 / cm]
+const double A_UC = 20.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2 = [cm/(min*cm)]
+clock S_UC[ID_T] = {0.0, 0.0, 0.0}; //TAG_S_UC; // Water surface height urban catchment [cm]
+
+// Stormwater Detention Pond 
+const int W = 300; // max water height [cm]
+clock w[ID_T] = {100.0, 100.0, 100.0}; //TAG_w; // water level in pond [cm]
+double qout[ID_T] = {0.0, 0.0, 0.0}; 
+//double Open[ID_T] = {0.0, 0.0, 0.0}; //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+double Open[ID_T] = {0.0, 0.0, 0.0}; //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+clock pond_c[ID_T] = {0.0, 0.0, 0.0}; // cost function [-]
+clock o[ID_T] ={0.0, 0.0, 0.0}; // accumelated overflow time [min]
+
+// Pond static 
+clock w_static[ID_T] = {100.0, 100.0, 100.0};  //TAG_w; // water level in pond [cm]
+clock o_static[ID_T] = {0.0, 0.0, 0.0}; // accumelated overflow time [min]
+double qout_static[ID_T] = {0.0, 0.0, 0.0};
+double Open_static[ID_T] = {0.0, 0.0, 0.0}; //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+double orifice[ID_T] = {0.0, 0.0, 0.0};
+
+// Stream
+const int st_W = 250; // max water height [cm]
+clock st_w = 100.0; //TAG_w; // water level in pond [cm]
+double st_qout = 0.0; 
+double st_Open = 0.0; //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+clock st_cost = 0.0; // cost function [-]
+clock st_o = 0.0; // accumelated overflow time [min]
+const double upstream = 100*500*300; //[cm3] length: 1m, width: 5m, height:3m
+clock totalcost = 0.0;
+clock totalcost0 = 0.0;
+
+clock st_c = 0.0; //TAG_st_c; // cost function [-]
+double st_target = 100.0;
+
+
+//double Q = 0.0; //TAG_Q; // cost function [-]
+//clock st = 80.0; //TAG_st; // water level in stream [cm]
+//clock st_o = 0.0; //TAG_st_o; // accumulated overflow time [min]
+//clock st_gau = 0.0; //TAG_st_gau; // water level in pond [cm]
+
+
+
+//double wmax[ID_T] = {40.0, 40.0, 40.0};  // max water level observed [cm]
+//clock w_gau[ID_T] = {40.0, 40.0, 40.0};  //TAG_w_gau; // water level in pond by gaussian noise sensor[cm]
+//double Open[ID_T] = {0.0, 0.0, 0.0}; //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+//clock o[ID_T] = {0.0, 0.0, 0.0};  //TAG_o; // accumulated overflow time [min]
+
+// Rain detention pond_id
+//const int W = 300; // max water level of pond [cm]
+
+//clock w1 = 100.0; // initial water level in pond [cm]
+//clock w2 = 40.0; // initial water level in pond [cm]
+
+double qout1 = 0.0;
+double qout2 = 0.0;
+
+double Vol1 = 2250 * 10000.0 * 100; // 2250 * 10000.0 * 100.0; with initial water level 
+double Vol2 = 2250 * 10000.0 * 40.0; // 2250 * 10000.0 * 100.0; with initial water level 
+
+double stream_vol = 0.0;  
+double stream_level = 0.0;  
+  
+
+//double wmax[ID_T] = {40.0, 40.0, 40.0};  // max water level observed [cm]
+//clock w_gau[ID_T] = {40.0, 40.0, 40.0};  //TAG_w_gau; // water level in pond by gaussian noise sensor[cm]
+//double Open[ID_T] = {0.0, 0.0, 0.0}; //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+//clock o[ID_T] = {0.0, 0.0, 0.0};  //TAG_o; // accumulated overflow time [min]</declaration>
+	<template>
+		<name>Rain</name>
+		<declaration>clock t = 0; 
+
+const int I = 121; // number of intervals. Simulation should finish before the last period is over. Therefore, last period is a large dummy period.
+int i = 0; // current interval index
+
+const double e = 0.1; // rain uncertainty factor.
+
+// Returns a sample from a uniform distribution between lower and upper.
+double uniform(double lower, double upper)
+{
+    double distance = upper - lower;
+    double sample = random(distance);
+    return lower + sample;
+}
+
+// Rain intensity [cm/min], 1 mm/min = 0.1 cm/min
+// Based on DMI data (from Civil department)
+const double raindata0[I] = {0,0,0,0.0123624,0.011628,0.039984,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.0512856,0.0127032,0,0,0.0320112,0,0,0,0.0178296,0.02364,0.013248,0.0350952,0.0061752,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.0100608,0.0081504,0.0083904,0,0.0079992,0}; 
+// Based on rain0, intensity increased 10% (rain0 * 1.1) 
+const double raindata1[I] = {0,0,0,0.01359864,0.0127908,0.0439824,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.05641416,0.01397352,0,0,0.03521232,0,0,0,0.01961256,0.026004,0.0145728,0.03860472,0.00679272,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.01106688,0.00896544,0.00922944,0,0.00879912,0}; // rain intensity [cm/min], 1 mm/min = 0.1 cm/min
+// Based on rain0, the moment of rainfall event changed (total rainfall amount of rain2 is same as rain0)
+const double raindata2[I] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.0123624,0.011628,0.039984,0.0512856,0.0127032,0.0320112,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.0178296,0.02364,0.013248,0.0350952,0.0061752,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.0100608,0.0081504,0.0083904,0,0.0079992,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // rain intensity [cm/min], 1 mm/min = 0.1 cm/min
+</declaration>
+		<location id="id0" x="-569" y="-204">
+			<name x="-579" y="-238">Init</name>
+			<urgent/>
+		</location>
+		<location id="id1" x="-442" y="-204">
+			<label kind="invariant" x="-535" y="-195">t&lt;=(60*m+1)</label>
+		</location>
+		<location id="id2" x="-238" y="-204">
+			<committed/>
+		</location>
+		<location id="id3" x="-144" y="-204">
+			<name x="-154" y="-238">End</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id4" controllable="false">
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="guard" x="-221" y="-229">i==120</label>
+		</transition>
+		<transition id="id5">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-535" y="-229">i=0</label>
+		</transition>
+		<transition id="id6" controllable="false">
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-425" y="-127">i&lt;120</label>
+			<label kind="assignment" x="-425" y="-110">t=0,
+i++</label>
+			<nail x="-238" y="-136"/>
+			<nail x="-442" y="-136"/>
+		</transition>
+		<transition id="id7" controllable="false">
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-425" y="-348">t&gt;=(60*m)</label>
+			<label kind="assignment" x="-425" y="-331">rain0 = raindata0[i]*uniform(1-e,1+e),
+rain1 = raindata1[i]*uniform(1-e,1+e),
+rain2 = raindata2[i]*uniform(1-e,1+e)</label>
+			<nail x="-442" y="-272"/>
+			<nail x="-238" y="-272"/>
+		</transition>
+	</template>
+	<template>
+		<name>Urban</name>
+		<parameter>ID_T id</parameter>
+		<declaration>double ub_dynamics(double S_UC_id)
+{
+    if (id == 0) return rain0 - (S_UC_id * UC_k);
+
+    else if (id == 1) return rain1 - (S_UC_id * UC_k);
+    
+    else return rain2 - (S_UC_id * UC_k);
+}</declaration>
+		<location id="id8" x="-586" y="-59">
+			<label kind="invariant" x="-629" y="-42">S_UC[id]' == ub_dynamics(S_UC[id])</label>
+		</location>
+		<init ref="id8"/>
+	</template>
+	<template>
+		<name>Pond</name>
+		<parameter>ID_T id</parameter>
+		<declaration>// Pond geomertry 
+//const double pond_A = 2250 * 10000.0; // pond1's area A1 [cm2] 1 m2 -&gt; 10000 cm2
+const double pond_A = 5572 * 10000.0; // pond1's area A1 [cm2] 1 m2 -&gt; 10000 cm2
+
+
+clock x = 0.0; // clock
+int pipelen = 1;
+
+// Flow from urban catchment to pond. Eq. 2 in paper.
+double Qin()
+{
+    return S_UC[id] * UC_k * A_UC;
+}
+
+// Orifice parameters
+const double C = 0.65; // discharge coefficient [-]
+//const double d = 17.5; // maximum diameter [cm]
+const double d = 20; // maximum diameter [cm]
+const double g = 980.7; // gravitational acceleration [cm/s2]
+const double PI_4 = 0.785398163397448279; // Pi/4
+
+// Open area of the orifice. ##check
+/*
+double ori_A()
+{
+    return PI_4 * d * d * Open[id] * Open[id]; // Orifice open rate has set as 1.0
+    //return PI_4 * d * d *(2/3)* (2/3); // Orifice open rate has set as 1.0
+}
+*/
+
+// Flow from the pond to the nearby stream through the orifice [cm3/min].
+/*
+double Qout()
+{
+    if (w[id] &lt;= 0) return 0;
+    else return 60 * C * ori_A() * sqrt(2 * g * w[id]);
+}
+*/
+
+// Dynamics of the water level. Eqs. 4 and 5 in the paper combined.
+double pond_dynamics()
+{
+    if (w[id] &lt;= 0 &amp;&amp; Qin() &lt;= qout[id]) return 0;
+        else if (w[id] &gt;= W &amp;&amp; Qin() &gt;= qout[id]) return 0; 
+        //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout()); // Inverted pyramid
+        else return (Qin() - qout[id]) / pond_A; // Box
+
+    /*if (id==1)
+    {
+        if (w[id] &lt;= 0 &amp;&amp; Qin() &lt;= qout[0]) return 0;
+        else if (w[id] &gt;= W &amp;&amp; Qin() &gt;= qout[0]) return 0; 
+        //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout()); // Inverted pyramid
+        else return (Qin() - qout[0]) / pond_A; // Box
+    }
+    else
+    {
+         if (w[id] &lt;= 0 &amp;&amp; Qin() &lt;= qout[id]) return 0;
+        else if (w[id] &gt;= W &amp;&amp; Qin() &gt;= qout[id]) return 0; 
+        //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout()); // Inverted pyramid
+        else return (Qin() - qout[id]) / pond_A; // Box
+    }*/
+}
+
+
+// Cummulative overflow duration. Eq. 6 in the paper.
+double overflow()
+{
+    const double epsilon = 0.1; // for numerical precision 
+    if (w[id] &gt;= W - epsilon) return 1.0;
+    
+    else return 0.0;
+}
+
+
+
+// Implementation of pipe 
+
+const int L1 = 20; // length of pipe
+int [0,L1] len; 
+double list [L1];
+int i = 0; 
+
+
+// Remove the front element of the po_list. It can hold only 5 elements. 
+void delist(double element)
+{
+    int j = 0; 
+    
+
+    len -= 1; 
+    //stream_vol = stream_vol + list[len]; 
+    stream_vol = list[len]; 
+    j = len;
+
+    while (j &gt; 0) 
+    {
+        list[j] = list[j-1];
+        j--;
+    }
+    list[0] = element; 
+}
+ 
+// Put a new element at the end of the list. 
+void enlist(double element)
+{    
+    int j = 0; 
+    j = len;    
+    
+    while (j &gt; 0)
+    {
+        list[j] = list[j-1];
+        j--; 
+    } 
+    list[0] = element;    
+    
+    
+}
+
+
+
+</declaration>
+		<location id="id9" x="-1368" y="-527">
+			<label kind="invariant" x="-1419" y="-510">w[id]' == pond_dynamics() &amp;&amp;
+o[id]' == overflow()</label>
+		</location>
+		<init ref="id9"/>
+	</template>
+	<template>
+		<name>Controller</name>
+		<parameter>ID_T id, ID2_T id2</parameter>
+		<declaration>const int P = h; // control switching period [min]
+const int C = 3; // number of control modes
+const double Opening[C] = {1.0/7.0, 4.0/7.0, 7.0/7.0}; // orifice diameter opening modes
+
+clock x = 0.0; // control switching clock
+
+// Orifice parameters
+const double Coeff = 0.65; // discharge coefficient [-]
+//const double d = 17.5; // maximum diameter [cm]
+const double d = 20; // maximum diameter [cm]
+const double g = 980.7; // gravitational acceleration [cm/s2]
+const double PI_4 = 0.785398163397448279; // Pi/4
+
+// Open area of the orifice. 
+double ori_A(int id)
+{
+    if (id == 0) return PI_4 * d * d * Open[id] * Open[id];
+    else if (id == 1) return PI_4 * d * d * Open[0] * Open[0];
+    else return PI_4 * d * d * Open[id] * Open[id];  
+}
+
+// Flow from the pond to the nearby stream through the orifice [cm3/min].
+double Qout(int id)
+{
+    if (w[id] &lt;= 0) return 0;
+    else return 60 * Coeff * ori_A(id) * sqrt(2 * g * w[id]);
+    
+}
+
+</declaration>
+		<location id="id10" x="-544" y="-34">
+			<label kind="invariant" x="-654" y="-42">x&lt;=(60*m+1)</label>
+		</location>
+		<location id="id11" x="-374" y="-34">
+			<urgent/>
+		</location>
+		<init ref="id11"/>
+		<transition id="id12" controllable="false">
+			<source ref="id10"/>
+			<target ref="id11"/>
+			<label kind="guard" x="-493" y="-34">x&gt;=(60*m)</label>
+		</transition>
+		<transition id="id13">
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="select" x="-544" y="-204">i:int[0,C-1]</label>
+			<label kind="assignment" x="-544" y="-187">x=0, 
+Open[id]=Opening[i],
+qout[id]=Qout(id)</label>
+			<nail x="-375" y="-119"/>
+			<nail x="-545" y="-119"/>
+		</transition>
+	</template>
+	<template>
+		<name>PondCost</name>
+		<parameter>ID_T id</parameter>
+		<location id="id14" x="0" y="0">
+			<label kind="invariant" x="-204" y="17">pond_c[id]' == (1 - w[id] / W) + (1000 * pow(w[id] / W, 20))</label>
+		</location>
+		<init ref="id14"/>
+	</template>
+	<template>
+		<name>Stream_Test</name>
+		<declaration>clock x = 0.0; // clock
+
+// initial volume of stream 
+const double stream_init = 500*100*100.0; // 1 cell cubic: width * length * height [cm3]
+const double stream_A = 500*100; 
+//double stream_vol = 0.0;
+
+// Implementation of array 
+const int L = 60*72+1; // length of array is 60m * 72h + 1(spare) 
+int [0,L] len; 
+double list [L][5];
+//list = {{stream_init,0.0, 0.0, 0.0, 0.0}};
+double list_vol [L];
+int i = 0; 
+
+// uncertainty factor.
+const double e = 0.01; 
+
+// Returns a sample from a uniform distribution between lower and upper.
+double uniform(double lower, double upper)
+{
+    double distance = upper - lower;
+    double sample = random(distance);
+    return lower + sample;
+}
+
+// Initialize stream array with stream_init 
+void streaminit()
+{
+    int j = 0; 
+    while (j &lt; L)
+    {
+     list[j][0] = stream_init;
+     j++; 
+    }
+}
+
+// Put a new element (volume of stream) at the end of the list. 
+void enlist(double element1, double element2, double element3, double element4)
+{    
+    int j = 0; 
+    //j = len;    
+    j = 20; 
+
+    while (j &gt; 0)
+    {
+        list[j][0] = list[j-1][0];
+        list[j][1] = list[j-1][1];
+        list[j][2] = list[j-1][2];
+        list[j][3] = list[j-1][3];
+        list[j][4] = list[j][0] + list[j][1] + list[j][2] + + list[j][3];     
+        j--; 
+    } 
+    list[0][0] = element1*uniform(1-e,1+e); 
+    list[10][1] = element2;      
+    list[15][2] = element3; 
+    list[19][3] = element4; 
+}
+
+
+/*void enlist(double element1, double element2)
+{    
+    int j = 0; 
+    //j = len;    
+    j = 20; 
+
+    while (j &gt; 0)
+    {
+        list[j][0] = list[j-1][0];
+        list[j][1] = list[j-1][1];
+        list[j][2] = list[j][0] + list[j][1];     
+        j--; 
+    } 
+    list[0][0] = element1*uniform(1-e,1+e); 
+    list[10][1] = element2;       
+}*/
+
+
+</declaration>
+		<location id="id15" x="-1768" y="-680">
+			<label kind="invariant" x="-1759" y="-671">x&lt;=(1*m+1)</label>
+		</location>
+		<location id="id16" x="-1530" y="-680">
+			<committed/>
+		</location>
+		<location id="id17" x="-1904" y="-680">
+			<urgent/>
+		</location>
+		<init ref="id17"/>
+		<transition id="id18" controllable="false">
+			<source ref="id17"/>
+			<target ref="id15"/>
+			<label kind="assignment" x="-1878" y="-680">x = 0, 
+len = 0</label>
+		</transition>
+		<transition id="id19" controllable="false">
+			<source ref="id16"/>
+			<target ref="id15"/>
+			<label kind="assignment" x="-1683" y="-612">x = 0,
+streaminit(),
+enlist(stream_init, qout[0], qout[1], qout[2]), 
+stream_vol = list[20][2],
+stream_level = (stream_vol/stream_A),
+len++</label>
+			<nail x="-1530" y="-612"/>
+			<nail x="-1768" y="-612"/>
+		</transition>
+		<transition id="id20" controllable="false">
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="guard" x="-1683" y="-705">x &gt;= (1*m)</label>
+		</transition>
+	</template>
+	<template>
+		<name>Stream</name>
+		<declaration>// Stream (big tank) 
+const double streamtank_A =  500 * 100 * 5000; // pond1's area A1 [cm2] 1 m2 -&gt; 10000 cm2
+
+clock x = 0.0; // clock
+
+// Flow from urban catchment to pond. Eq. 2 in paper.
+double Qin()
+{
+    return upstream + qout[0] + qout[1] + qout[2];
+    //return upstream + qout[0]; // Considering just pond1 (test!)
+}
+
+// Orifice parameters
+const double Coeff = 0.65; // discharge coefficient [-]
+//const double d = 17.5; // maximum diameter [cm]
+const double d = 20; // maximum diameter [cm]
+const double g = 980.7; // gravitational acceleration [cm/s2]
+const double PI_4 = 0.785398163397448279; // Pi/4
+
+// Open area of the orifice. ##check
+double dowmstream_area()
+{
+    //return PI_4 * d * d * Open[id] * Open[id]; // Orifice open rate has set as 1.0
+    return PI_4 * d * d * (2/3)* (2/3); // Orifice open rate has set as 1.0
+}
+
+// Flow from the pond to the nearby stream through the orifice [cm3/min].
+double Qout()
+{
+    return (60 * Coeff * dowmstream_area() * sqrt(2 * g * st_w)) + upstream;
+}
+// Dynamics of the water level. Eqs. 4 and 5 in the paper combined.
+/*
+double stream_dynamics()
+{
+    if (st_w &lt;= 0 &amp;&amp; Qin() &lt;= Qout()) return 0;
+    else if (st_w &gt;= st_W &amp;&amp; Qin() &gt;= Qout()) return 0; 
+    //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout()); // Inverted pyramid
+    else return (Qin() - Qout()) / stream_A; // Box
+}
+*/
+double stream_dynamics()
+{
+    if (st_w &lt;= 0 &amp;&amp; Qin() &lt;= Qout()) return 0;
+    else if (st_w &gt;= st_W &amp;&amp; Qin() &gt;= Qout()) return 0; 
+    //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout()); // Inverted pyramid
+    else return (Qin() - Qout()) / streamtank_A; // Box
+}
+
+
+// Cummulative overflow duration. Eq. 6 in the paper.
+double overflow()
+{
+    const double epsilon = 0.1; // for numerical precision 
+    if (st_w &gt;= st_W - epsilon) return 1.0;
+    
+    else return 0.0;
+}
+</declaration>
+		<location id="id21" x="-144" y="-170">
+			<label kind="invariant" x="-154" y="-153">st_w' == stream_dynamics() &amp;&amp;
+st_o' == overflow()</label>
+		</location>
+		<init ref="id21"/>
+	</template>
+	<template>
+		<name>StreamCost</name>
+		<location id="id22" x="-297" y="-34">
+			<label kind="invariant" x="-307" y="-17">st_c' == sqrt(pow(1 - st_w / st_target, 2)) + 1000 * pow(st_w / st_W, 20)</label>
+		</location>
+		<init ref="id22"/>
+	</template>
+	<template>
+		<name>Cost</name>
+		<parameter>ID_T id</parameter>
+		<declaration>double costfunction()
+{
+    double costvalue = 0.0;
+    int num = 0;  
+         costvalue = costvalue + (1 - w[0] / W) + (1000 * pow(w[0] / W, 20));
+       /* while (num&lt;=2)
+        {       
+            costvalue = costvalue + (1 - w[id] / W) + (1000 * pow(w[id] / W, 20));
+            num++;
+        }*/
+        costvalue = costvalue + sqrt(pow(1 - st_w/ st_target, 2)) + 1000 * pow(st_w / st_W, 20);
+        return costvalue;  
+}
+</declaration>
+		<location id="id23" x="0" y="0">
+			<label kind="invariant" x="-8" y="17">totalcost' == sqrt(pow(1 - st_w / st_target, 2)) + 1000 * pow(st_w / st_W, 20) &amp;&amp;
+totalcost0' == (1 - w[0] / W) + (1000 * pow(w[0] / W, 20))</label>
+		</location>
+		<init ref="id23"/>
+	</template>
+	<template>
+		<name>Stream_Controller</name>
+		<parameter>ID_T id</parameter>
+		<declaration>const int P = h; // control switching period [min]
+
+clock x = 0.0; // control switching clock
+const double Opening = 2.0 / 3.0;
+
+// Orifice parameters
+const double Coeff = 0.65; // discharge coefficient [-]
+//const double d = 17.5; // maximum diameter [cm]
+const double d = 20; // maximum diameter [cm]
+const double g = 980.7; // gravitational acceleration [cm/s2]
+const double PI_4 = 0.785398163397448279; // Pi/4
+
+// Open area of the orifice. ##check
+double stream_A()
+{
+    return PI_4 * d * d * Opening * Opening; 
+}
+
+// Flow from the pond to the nearby stream through the orifice [cm3/min].
+double Qout()
+{
+    if (st_w &lt;= 0) return 0;
+    else return ((60 * Coeff * stream_A() * sqrt(2 * g * st_w)) + upstream);
+}</declaration>
+		<location id="id24" x="-544" y="-34">
+			<label kind="invariant" x="-654" y="-42">x&lt;=(60*m+1)</label>
+		</location>
+		<location id="id25" x="-374" y="-34">
+			<urgent/>
+		</location>
+		<init ref="id25"/>
+		<transition id="id26" controllable="false">
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-493" y="-34">x&gt;=(60*m)</label>
+		</transition>
+		<transition id="id27">
+			<source ref="id25"/>
+			<target ref="id24"/>
+			<label kind="assignment" x="-535" y="-161">x=0, 
+st_qout = Qout()</label>
+			<nail x="-375" y="-119"/>
+			<nail x="-545" y="-119"/>
+		</transition>
+	</template>
+	<system>system Rain, Urban, Pond, Controller, PondCost, Stream, StreamCost, Cost; 
+//, Pond, Controller;
+//, Urban, Pond, PondCost, Controller, Stream, StreamCost, Pond_static, Controller; Stream_Controller, 
+//system Pond_static, </system>
+	<queries>
+		<option key="--total-runs" value="100"/>
+		<option key="--deterministic-search-limit" value="0.5"/>
+		<option key="--discretization" value="0.5"/>
+		<option key="--good-runs" value="100"/>
+		<option key="--eval-runs" value="20"/>
+		<option key="--runs-pr-state" value="100"/>
+		<query>
+			<formula>// Optimal control </formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>strategy opt_stream_compo = minE (st_c + pond_c[0] + pond_c[1] + pond_c[2]) [&lt;=48*h]{}-&gt;{w[0], w[1], w[2], st_w}: &lt;&gt; (t==48*h)</formula>
+			<comment>Expected running time: 
+
+Parameter Setting: 
+Learning parameters: Number of successful runs (100), Maximum number of runs (100), Number of good runs (100), Number of runs to evaluate (20).
+Statistical parameters: Discretization step for hybrid systems (0.5) 
+</comment>
+		</query>
+		<query>
+			<formula>saveStrategy("Users\sj81ko\OneDrive - Aalborg Universitet\Desktop\paper_compositionalityStrategy\opt_compo_1.json", opt_stream_compo)</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>simulate [&lt;=48*h;1] {st_w, w[0], w[1], w[2]} under opt_stream_compo</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>E[&lt;=48*h; 1000](max:o[0]) under opt_stream_compo</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>E[&lt;=48*h; 1000](max:o[1]) under opt_stream_compo</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>E[&lt;=48*h; 1000](max:o[2]) under opt_stream_compo</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>E[&lt;=48*h; 1000](max:st_o) under opt_stream_compo</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula/>
+			<comment/>
+		</query>
+		<query>
+			<formula/>
+			<comment/>
+		</query>
+	</queries>
+</nta>

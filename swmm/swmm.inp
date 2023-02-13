@@ -180,7 +180,7 @@ catchment_storage3 Storage    0.01       100000
 ;;Name           Date       Time       Value     
 ;;-------------- ---------- ---------- ----------
 ;
-long_term_rainfallgauge5061 FILE "/home/esther/Downloads/CLAIRE (copy)/swmm_models/swmm_5061.dat"
+long_term_rainfallgauge5061 FILE "/home/esther/Downloads/DIREC/Compositionality/swmm/swmm_5061.dat"
 
 [REPORT]
 ;;Reporting Options

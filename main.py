@@ -1,4 +1,5 @@
-import os
+from pyswmm import Simulation, Nodes, Links, RainGages, Subcatchments
+import os.path
 import xml.etree.ElementTree as ET
 import csv
 import re
@@ -8,8 +9,8 @@ import sys
 import yaml
 import inspect
 
-from pyswmm import Simulation, Nodes, Links
-
+#from pyswmm import Simulation, Nodes, Links, Subcatchments
+import weather_forecast_generation as weather
 
 
 def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basename, controllers,
@@ -116,6 +117,45 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                 line.append(orifice_setting[line_index])
             writer.writerow(line)
 
+def get_control_strategy(current_water_level, current_time, controller, period, horizon,
+                         rain_data_file, weather_forecast_path, uncertainty):
+    controller.controller.update_state({'w': current_water_level * 100}) #  Conversion from m to cm.
+    control_setting = controller.run_single(period, horizon, start_date=current_time,
+                                            historical_rain_data_path=rain_data_file,
+                                            weather_forecast_path=weather_forecast_path,
+                                            uncertainty=uncertainty)
+
+    return control_setting
+
+def get_weather_forecast_result(weather_forecast_path):
+    with open(weather_forecast_path, "r") as f:
+        weather_forecast = csv.reader(f, delimiter=',', quotechar='"')
+        headers = next(weather_forecast)
+        first_data = next(weather_forecast)
+
+        return int(first_data[0]), int(first_data[1]), float(first_data[4])
+
+def print_progress_bar(i, max, post_text):
+    """
+    Print a progress bar to sys.stdout.
+
+    Subsequent calls will override the previous progress bar (given that nothing else has been
+    written to sys.stdout).
+
+    From `<https://stackoverflow.com/a/58602365>`_.
+
+    :param i: The number of steps already completed.
+    :type i: int
+    :param max: The maximum number of steps for process to be completed.
+    :type max: int
+    :param post_text: The text to display after the progress bar.
+    :type post_text: str
+    """
+    n_bar = 20  # Size of progress bar.
+    j = i / max
+    sys.stdout.write('\r')
+    sys.stdout.write(f"[{'=' * int(n_bar * j):{n_bar}s}] {int(100 * j)}%  {post_text}")
+    sys.stdout.flush()
 
 
 
@@ -151,6 +191,24 @@ def insert_paths_in_test():
         file.writelines(words)
         file.write("END")
         file.truncate()
+
+
+def insert_rain_data_file_path(swmm_inputfile, rain_data_file):
+    """
+    Insert the provided rain data file path into the swmm model.
+
+    :param str swmm_inputfile: swmm model path
+    :param str rain_data_file: rain data file path
+    """
+    with open(swmm_inputfile, "r+") as f:
+        file_content = f.read()
+        new_line = "long_term_rainfallgauge5061 FILE \"" + rain_data_file + "\""
+        file_content = re.sub(r"long_term_rainfallgauge5061 FILE \"[^\"]*\"", new_line,
+                              file_content, count=1)
+        f.seek(0)
+        f.write(file_content)
+        f.truncate()
+
 
 class MPCSetupPond(sutil.SafeMPCSetup):
     def create_query_file(self, horizon, period, final): ### no idea .. where does the parameters come from?
@@ -194,22 +252,30 @@ class MPCSetupPond(sutil.SafeMPCSetup):
                                         kwargs["weather_forecast_path"], current_date,
                                         horizon * controlperiod, kwargs["uncertainty"])
 
-
 def main():
-    # First, figure out where this script is located. This is OS dependent.
+    # It is for path setting. This is OS dependent.
     this_file = os.path.realpath(__file__)
     base_folder = os.path.dirname(this_file)
 
+    # Setting directory for swmm.
     swmm_folder = "swmm"  # swmm model located folder name
     swmm_inputfile = os.path.join(base_folder, swmm_folder,"swmm.inp")  # CLAIRE/swmm_models/swmm_decentralized.inp
     assert (os.path.isfile(swmm_inputfile))  # if there is the file, go ahead!
 
-    # We found the model. Now we have to include the correct path to the rain data into the model.
+    # For including the correct path to the rain data into the model.
     rain_data_file = "swmm_5061.dat"  # Assumed to be in the same folder as the swmm model input file.
     rain_data_file = os.path.join(base_folder, swmm_folder, rain_data_file)
+    insert_rain_data_file_path(swmm_inputfile, rain_data_file)
 
+    # Setting variables of swmm.
+    orifice_id = "OR"
+    basin_id = "SU"
+    num_basins = 1
+    time_step = 60 * 60  # 60 seconds/min x 60 min/h -> 1 h
+    swmm_results = "swmm_results"
+    # print(swmm_results)
 
-    # Second, setup path for uppaal model.
+    # Setting path for uppaal model.
     uppaal_folder_name = "uppaal"
     uppaal_folder = os.path.join(base_folder, uppaal_folder_name)
     model_template_path = os.path.join(uppaal_folder, "pond.xml")
@@ -223,20 +289,20 @@ def main():
                                  os.path.join(uppaal_folder, "libtable.so"))
     #insert_paths_in_test()
 
-    # Third, define uppaal model variables. It is for Online synthesis.
+    # Defining uppaal model variables. It is for Online synthesis.
     action_variable = "Open"  # Name of the control variable
     debug = True  # Whether to run in debug mode.
     period = 60  # Control period in time units (minutes).
     horizon = 2  # How many periods to compute strategy for.
     uncertainty = 0.1  # The uncertainty in the weather forecast generation.
 
-    # Fourth, get model and learning config dictionaries from files.
+    # Getting model and learning config dictionaries from files.
     with open(model_config_path, "r") as yamlfile:
         model_cfg_dict = yaml.safe_load(yamlfile)
     with open(learning_config_path, "r") as yamlfile:
         learning_cfg_dict = yaml.safe_load(yamlfile)
 
-    # Fifth, Construct the MPC object.
+    # Construct the MPC object.
         num_basins = 1
 
         controllers = []
@@ -255,9 +321,6 @@ def main():
             swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, swmm_results, controllers, period, horizon,
                          rain_data_file, weather_forecast_path, uncertainty)
             print("procedure completed!")
-
-
-
 
 if __name__ == "__main__":
     main()

@@ -4,24 +4,24 @@
 	<declaration>// Global time. One time unit in Uppaal represents 1 minute
 const int m = 1; // 1 minute = 1 time unit
 const int h = 60*m; // 1 hour = 60 minutes
-clock t = //TAG_t; // global time [min]
+clock t = 0.0; // global time [min]
 
 // Urban catchment
 const double UC_k = 0.25; // Urban surface reservoir reaction factor [cm/min * 1 / cm]
 const double A_UC = 20.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2 = [cm/(min*cm)]
 // C1: 20 ha, C2: 15 ha, C3: 10 ha
-double rain = //TAG_rain; // Rainfall [cm/min]
-clock S_UC = //TAG_S_UC; // Water surface height urban catchment [cm]
+double rain = 0.0; // Rainfall [cm/min]
+clock S_UC = 0.0; // Water surface height urban catchment [cm]
 
 // Rain detention pond
 const int W = 200; // max water height [cm]
-clock w = //TAG_w; // water level in pond [cm]
+clock w = 119.04505525624431; // water level in pond [cm]
 double wmax = 0.0; // max water level observed [cm]
-double Open = //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
-clock o = //TAG_o; // accumulated overflow time [min]
+double Open = 1.0; // orifice relative diameter opening [-], will be properly initialized in Controller
+clock o = 0.0; // accumulated overflow time [min]
 
 // Cost function
-clock c = //TAG_c; // cost function [-]
+clock c = 0.0; // cost function [-]
 
 // Import data reading functions
 import "/home/esther/Downloads/DIREC/Compositionality/uppaal/libtable.so" {
@@ -160,7 +160,7 @@ wmax = w</label>
 		<name>Rain</name>
 		<declaration>const int i_init = 0; // constant introduced, otherwise the duration boundaries cannot be initialized properly.
 int i = i_init; // current interval index
-int rainLoc = //TAG_Rain.rainLoc; // rain location, only used for online control. 0 = dry, 1 = raining
+int rainLoc = 0; // rain location, only used for online control. 0 = dry, 1 = raining
 clock d = 0.0; // duration of dry or raining period [min]
 
 // Load weather forecast data from external data file.
